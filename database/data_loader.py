@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 try:
     import yfinance as yf
+
     YFINANCE_AVAILABLE = True
 except ImportError:
     YFINANCE_AVAILABLE = False
@@ -23,6 +24,7 @@ if not YFINANCE_AVAILABLE:
 
 DEFAULT_LOOKBACK_DAYS = 252  # ~1 year of trading days
 
+
 def get_current_price(symbol):
     """Get current price for a symbol, try PostgreSQL first, then yfinance/mock"""
     try:
@@ -32,7 +34,7 @@ def get_current_price(symbol):
             return result['close']
     except Exception as e:
         print(f"PostgreSQL error for {symbol}: {e}")
-    
+
     # Fallback to yfinance or mock
     if YFINANCE_AVAILABLE:
         try:
@@ -49,8 +51,9 @@ def get_current_price(symbol):
             return price
         print(f"No mock data for {symbol}, using default")
         return 1000.0  # Default price
-    
+
     return None
+
 
 def get_historical_data(symbols, days=DEFAULT_LOOKBACK_DAYS):
     """
@@ -59,22 +62,22 @@ def get_historical_data(symbols, days=DEFAULT_LOOKBACK_DAYS):
     """
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=days * 2)  # Extra buffer for weekends
-    
+
     try:
         # Try PostgreSQL
         query = get_historical_prices_query()
         results = execute_query(query, (symbols, start_date, end_date))
-        
+
         if results:
             df = pd.DataFrame(results)
             df['date'] = pd.to_datetime(df['date'])
             return df
     except Exception as e:
         print(f"PostgreSQL error: {e}")
-    
+
     # Fallback to yfinance or mock
     all_data = []
-    
+
     if YFINANCE_AVAILABLE:
         for symbol in symbols:
             try:
@@ -94,17 +97,18 @@ def get_historical_data(symbols, days=DEFAULT_LOOKBACK_DAYS):
         for symbol in symbols:
             mock_df = generate_mock_historical_data(symbol, days)
             all_data.append(mock_df)
-    
+
     if all_data:
         return pd.concat(all_data, ignore_index=True)
-    
+
     return pd.DataFrame(columns=['symbol', 'date', 'close'])
+
 
 def get_nifty50_data(days=DEFAULT_LOOKBACK_DAYS):
     """Get Nifty 50 index data for beta calculation"""
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=days * 2)
-    
+
     try:
         # Try PostgreSQL
         results = execute_query(get_nifty50_data_query(), (start_date, end_date))
@@ -114,7 +118,7 @@ def get_nifty50_data(days=DEFAULT_LOOKBACK_DAYS):
             return df
     except Exception as e:
         print(f"PostgreSQL error for Nifty: {e}")
-    
+
     # Fallback to yfinance or mock
     if YFINANCE_AVAILABLE:
         try:
@@ -130,7 +134,7 @@ def get_nifty50_data(days=DEFAULT_LOOKBACK_DAYS):
     else:
         # Use mock data
         return generate_mock_nifty_data(days)
-    
+
     return pd.DataFrame(columns=['date', 'close'])
 
 
@@ -143,8 +147,14 @@ def calculate_returns(prices_df):
 
         # Calculate daily returns
         symbol_data = symbol_data.copy()
+
         # Fix timezone issue - convert to naive datetime
-        symbol_data['date'] = pd.to_datetime(symbol_data['date']).dt.tz_localize(None)
+        # Handle both timezone-aware and timezone-naive datetimes
+        symbol_data['date'] = pd.to_datetime(symbol_data['date'])
+        if symbol_data['date'].dt.tz is not None:
+            # If timezone-aware, convert to naive
+            symbol_data['date'] = symbol_data['date'].dt.tz_localize(None)
+
         symbol_data['return'] = symbol_data['close'].pct_change()
         symbol_data = symbol_data.dropna(subset=['return'])
 
