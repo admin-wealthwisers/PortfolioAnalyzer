@@ -1,0 +1,68 @@
+{
+  "email": "singh.family@example.com",
+  "investor": [
+    {
+      "id": "INV001",
+      "name": "Rajesh Singh",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "50",
+          "cost_basis": "2400.00"
+        },
+        {
+          "symbol": "TCS",
+          "quantity": "30",
+          "cost_basis": "3200.00"
+        },
+        {
+          "symbol": "INFY",
+          "quantity": "40",
+          "cost_basis": "1450.00"
+        }
+      ]
+    },
+    {
+      "id": "INV002",
+      "name": "Priya Singh",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "25",
+          "cost_basis": "2500.00"
+        },
+        {
+          "symbol": "HDFCBANK",
+          "quantity": "60",
+          "cost_basis": "1580.00"
+        },
+        {
+          "symbol": "ICICIBANK",
+          "quantity": "45",
+          "cost_basis": "920.00"
+        }
+      ]
+    },
+    {
+      "id": "INV003",
+      "name": "Anita Singh",
+      "stocks": [
+        {
+          "symbol": "WIPRO",
+          "quantity": "80",
+          "cost_basis": "420.00"
+        },
+        {
+          "symbol": "TCS",
+          "quantity": "20",
+          "cost_basis": "3100.00"
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "quantity": "100",
+          "cost_basis": "740.00"
+        }
+      ]
+    }
+  ]
+}

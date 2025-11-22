@@ -1,0 +1,21 @@
+{
+  "email": "sharma.family@example.com",
+  "investor": [
+    {
+      "id": "INV001",
+      "name": "Amit Sharma",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "10",
+          "cost_basis": "2400.00"
+        },
+        {
+          "symbol": "INFY",
+          "quantity": "20",
+          "cost_basis": "1450.00"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "email": "diversified.family@example.com",
+  "investor": [
+    {
+      "id": "INV001",
+      "name": "Arjun Kumar",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "20",
+          "cost_basis": "2400.00"
+        },
+        {
+          "symbol": "HDFCBANK",
+          "quantity": "30",
+          "cost_basis": "1600.00"
+        },
+        {
+          "symbol": "ITC",
+          "quantity": "100",
+          "cost_basis": "420.00"
+        },
+        {
+          "symbol": "SUNPHARMA",
+          "quantity": "40",
+          "cost_basis": "1520.00"
+        },
+        {
+          "symbol": "MARUTI",
+          "quantity": "5",
+          "cost_basis": "11800.00"
+        }
+      ]
+    },
+    {
+      "id": "INV002",
+      "name": "Kavita Kumar",
+      "stocks": [
+        {
+          "symbol": "TCS",
+          "quantity": "25",
+          "cost_basis": "3100.00"
+        },
+        {
+          "symbol": "WIPRO",
+          "quantity": "80",
+          "cost_basis": "410.00"
+        },
+        {
+          "symbol": "AXISBANK",
+          "quantity": "50",
+          "cost_basis": "1050.00"
+        },
+        {
+          "symbol": "LT",
+          "quantity": "15",
+          "cost_basis": "3300.00"
+        },
+        {
+          "symbol": "BHARTIARTL",
+          "quantity": "60",
+          "cost_basis": "780.00"
+        }
+      ]
+    },
+    {
+      "id": "INV003",
+      "name": "Rohan Kumar",
+      "stocks": [
+        {
+          "symbol": "ICICIBANK",
+          "quantity": "70",
+          "cost_basis": "950.00"
+        },
+        {
+          "symbol": "TATAMOTORS",
+          "quantity": "100",
+          "cost_basis": "850.00"
+        },
+        {
+          "symbol": "HINDUNILVR",
+          "quantity": "20",
+          "cost_basis": "2300.00"
+        },
+        {
+          "symbol": "SBIN",
+          "quantity": "120",
+          "cost_basis": "580.00"
+        }
+      ]
+    }
+  ]
+}

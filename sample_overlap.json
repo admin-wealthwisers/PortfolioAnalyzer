@@ -1,0 +1,47 @@
+{
+  "email": "patel.family@example.com",
+  "investor": [
+    {
+      "id": "INV001",
+      "name": "Vikram Patel",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "100",
+          "cost_basis": "2350.00"
+        },
+        {
+          "symbol": "TCS",
+          "quantity": "50",
+          "cost_basis": "3150.00"
+        },
+        {
+          "symbol": "INFY",
+          "quantity": "80",
+          "cost_basis": "1400.00"
+        }
+      ]
+    },
+    {
+      "id": "INV002",
+      "name": "Meera Patel",
+      "stocks": [
+        {
+          "symbol": "RELIANCE",
+          "quantity": "75",
+          "cost_basis": "2400.00"
+        },
+        {
+          "symbol": "TCS",
+          "quantity": "40",
+          "cost_basis": "3200.00"
+        },
+        {
+          "symbol": "HDFCBANK",
+          "quantity": "50",
+          "cost_basis": "1600.00"
+        }
+      ]
+    }
+  ]
+}
