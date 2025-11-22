@@ -2,6 +2,9 @@ import gradio as gr
 import json
 import os
 import plotly.graph_objects as go
+import subprocess
+import atexit
+import asyncio
 from utils.validators import validate_portfolio_json, sanitize_json_input
 from portfolio.aggregator import process_portfolio_data
 from portfolio.optimizer import (
@@ -49,6 +52,219 @@ portfolio_state = {}
 charts_state = {}
 optimization_state = {}
 risk_state = {}
+
+# MCP Server startup
+try:
+    mcp_process = subprocess.Popen(["python", "mcp_server.py"],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+    atexit.register(mcp_process.terminate)
+    MCP_AVAILABLE = True
+except Exception as e:
+    print(f"Warning: Could not start MCP server: {e}")
+    MCP_AVAILABLE = False
+
+
+# MCP Client functions
+async def call_mcp_tool_async(tool_name, **kwargs):
+    """Call MCP tool asynchronously"""
+    try:
+        from mcp.client import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        server_params = StdioServerParameters(
+            command="python",
+            args=["mcp_server.py"]
+        )
+
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments=kwargs)
+                return json.loads(result.content[0].text)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def call_mcp_tool(tool_name, **kwargs):
+    """Synchronous wrapper for MCP tool calls"""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(call_mcp_tool_async(tool_name, **kwargs))
+        loop.close()
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def format_analysis_result(result):
+    """Format analysis result for display"""
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+
+    family = result.get('family', {})
+    overlaps = result.get('overlaps', {})
+
+    overlap_text = ""
+    if overlaps:
+        overlap_text = "\n\n⚠️ **Overlapping Holdings:**\n" + "\n".join(
+            f"- {symbol}: {len(owners)} members ({', '.join(owners)})"
+            for symbol, owners in overlaps.items()
+        )
+    else:
+        overlap_text = "\n\n✅ No overlapping holdings detected"
+
+    return f"""
+📊 **Portfolio Analysis Complete**
+
+**Total Value:** ₹{family.get('total_value', 0):,.2f}
+**Total Gain:** ₹{family.get('total_gain', 0):,.2f} ({family.get('total_gain_pct', 0):.2f}%)
+**Risk Score:** {family.get('risk_score', 0):.1f}/10
+**Members:** {family.get('member_count', 0)}
+**Unique Stocks:** {family.get('unique_stocks', 0)}
+
+**Metrics:**
+- Volatility: {family.get('metrics', {}).get('volatility', 0):.4f}
+- Sharpe Ratio: {family.get('metrics', {}).get('sharpe_ratio', 0):.4f}
+- Beta: {family.get('metrics', {}).get('beta', 0):.4f}
+{overlap_text}
+"""
+
+
+def format_optimization_result(result):
+    """Format optimization result"""
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+
+    current = result.get('current', {})
+    optimized = result.get('optimized', {})
+    improvement = result.get('improvement', {})
+    trades = result.get('trades', [])
+
+    trades_text = "\n".join(
+        f"{i + 1}. {t['action']} {t['quantity']:.0f} shares of {t['symbol']} (₹{t['value']:,.0f})"
+        for i, t in enumerate(trades[:5])
+    )
+
+    return f"""
+⚡ **Optimization Results**
+
+**Current Portfolio:**
+- Expected Return: {current.get('expected_return', 0) * 100:.2f}%
+- Volatility: {current.get('volatility', 0) * 100:.2f}%
+- Sharpe Ratio: {current.get('sharpe_ratio', 0):.4f}
+
+**Optimized Portfolio:**
+- Expected Return: {optimized.get('expected_return', 0) * 100:.2f}%
+- Volatility: {optimized.get('volatility', 0) * 100:.2f}%
+- Sharpe Ratio: {optimized.get('sharpe_ratio', 0):.4f}
+
+**Improvements:**
+- Return Change: {improvement.get('return_change', 0) * 100:+.2f}%
+- Volatility Change: {improvement.get('volatility_change', 0) * 100:+.2f}%
+- Sharpe Change: {improvement.get('sharpe_change', 0):+.4f}
+
+**Top 5 Recommended Trades:**
+{trades_text}
+
+Total trades needed: {len(trades)}
+"""
+
+
+def format_risk_result(result):
+    """Format risk result"""
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+
+    conc = result.get('concentration_risk', {})
+    var_data = result.get('var', {})
+    cvar_data = result.get('cvar', {})
+
+    var_text = ""
+    if var_data:
+        var_text = f"""
+**Value at Risk ({var_data.get('confidence_level', 0.95) * 100:.0f}% confidence):**
+- Daily VaR: {var_data.get('daily_var', 0) * 100:.2f}%
+- Annual VaR: {var_data.get('annual_var', 0) * 100:.2f}%
+
+**Conditional VaR (CVaR):**
+- Daily CVaR: {cvar_data.get('daily_cvar', 0) * 100:.2f}%
+- Annual CVaR: {cvar_data.get('annual_cvar', 0) * 100:.2f}%
+"""
+
+    return f"""
+⚠️ **Risk Analysis**
+
+**Concentration Risk:**
+- Level: {conc.get('concentration_level', 'Unknown')}
+- Rating: {conc.get('risk_rating', 'Unknown')}
+- HHI Index: {conc.get('hhi', 0):.2f}
+
+**Top Holdings Concentration:**
+- Top 1 Stock: {conc.get('top_1_concentration', 0):.1f}%
+- Top 3 Stocks: {conc.get('top_3_concentration', 0):.1f}%
+- Top 5 Stocks: {conc.get('top_5_concentration', 0):.1f}%
+
+{var_text}
+
+**Effective Number of Holdings:** {conc.get('effective_holdings', 0):.2f}
+"""
+
+
+def format_scenario_result(result):
+    """Format scenario result"""
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+
+    return f"""
+🔮 **Scenario: {result.get('scenario', 'Unknown')}**
+
+**Current Value:** ₹{result.get('current_value', 0):,.2f}
+**Projected Value:** ₹{result.get('scenario_value', 0):,.2f}
+**Change:** ₹{result.get('value_change', 0):+,.2f} ({result.get('pct_change', 0):+.2f}%)
+
+{"🔴 Portfolio would decrease in value" if result.get('pct_change', 0) < 0 else "🟢 Portfolio would increase in value"}
+"""
+
+
+def handle_quick_action(action_name, portfolio_data, chat_history):
+    """Handle conversation starter buttons"""
+    if chat_history is None:
+        chat_history = []
+
+    if not portfolio_data:
+        response = "⚠️ **Please analyze a portfolio first.**\n\nUpload a JSON file or paste JSON data, then click the '🔍 Analyze Portfolio' button in the input section above."
+        return chat_history + [{"role": "user", "content": action_name}, {"role": "assistant", "content": response}]
+
+    if not MCP_AVAILABLE:
+        response = "⚠️ MCP server is not available. Please ensure mcp_server.py is running."
+        return chat_history + [{"role": "user", "content": action_name}, {"role": "assistant", "content": response}]
+
+    try:
+        portfolio_json = json.dumps(portfolio_data)
+
+        if "Analyze" in action_name:
+            result = call_mcp_tool("analyze_portfolio", portfolio_json=portfolio_json)
+            response = format_analysis_result(result)
+        elif "Optimize" in action_name:
+            result = call_mcp_tool("optimize_portfolio", portfolio_json=portfolio_json, method="max_sharpe")
+            response = format_optimization_result(result)
+        elif "Risk" in action_name:
+            result = call_mcp_tool("analyze_risk", portfolio_json=portfolio_json)
+            response = format_risk_result(result)
+        elif "Scenario" in action_name:
+            result = call_mcp_tool("run_scenario", portfolio_json=portfolio_json, scenario="Market Crash (-20%)")
+            response = format_scenario_result(result)
+        else:
+            response = "❌ Unknown action"
+
+        return chat_history + [{"role": "user", "content": action_name}, {"role": "assistant", "content": response}]
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return chat_history + [{"role": "user", "content": action_name},
+                               {"role": "assistant", "content": f"❌ Error: {str(e)}"}]
 
 
 def process_input(file_input, json_text, input_method):
@@ -402,37 +618,149 @@ def refresh_suggested_questions_fn(portfolio_data):
 
 
 def send_chat_message(user_message, chat_history, portfolio_data, api_key_input):
-    """Send message to AI and get response"""
     if not user_message or not user_message.strip():
         return chat_history, ""
 
-    # Get chat instance with API key if provided
-    api_key = api_key_input if api_key_input and api_key_input.startswith("sk-ant-") else None
-    chat = get_chat_instance(api_key)
+    if chat_history is None:
+        chat_history = []
 
-    # Set portfolio context
-    if portfolio_data:
-        chat.set_portfolio_data(portfolio_data)
+    api_key = api_key_input if api_key_input and api_key_input.startswith("sk-ant-") else os.getenv("ANTHROPIC_API_KEY")
 
-    # Get response
-    response = chat.chat(user_message)
+    if not api_key:
+        return (chat_history or []) + [(user_message, "⚠️ API key required")], ""
 
-    # Update chat history
-    chat_history = chat_history or []
-    chat_history.append((user_message, response))
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
 
-    return chat_history, ""
+        # Define tools
+        tools = [
+            {
+                "name": "analyze_portfolio",
+                "description": "Analyze family portfolio metrics, performance, and overlaps",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"portfolio_json": {"type": "string"}},
+                    "required": ["portfolio_json"]
+                }
+            },
+            {
+                "name": "optimize_portfolio",
+                "description": "Optimize portfolio allocation for better returns",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_json": {"type": "string"},
+                        "method": {"type": "string", "enum": ["max_sharpe", "min_volatility", "equal_weight"],
+                                   "default": "max_sharpe"}
+                    },
+                    "required": ["portfolio_json"]
+                }
+            },
+            {
+                "name": "analyze_risk",
+                "description": "Analyze portfolio risk metrics including VaR and concentration",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"portfolio_json": {"type": "string"}},
+                    "required": ["portfolio_json"]
+                }
+            },
+            {
+                "name": "run_scenario",
+                "description": "Run what-if scenario analysis on portfolio",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "portfolio_json": {"type": "string"},
+                        "scenario": {"type": "string", "default": "Market Crash (-20%)"}
+                    },
+                    "required": ["portfolio_json"]
+                }
+            }
+        ]
 
+        # Build messages correctly
+        messages = []
+
+        # Add chat history
+        if chat_history:
+            for user_msg, assistant_msg in chat_history:
+                if user_msg:
+                    messages.append({"role": "user", "content": str(user_msg)})
+                if assistant_msg:
+                    messages.append({"role": "assistant", "content": str(assistant_msg)})
+
+        # Add current message with context
+        if portfolio_data:
+            messages.append({
+                "role": "user",
+                "content": f"{user_message}\n\n[Portfolio data is available for analysis]"
+            })
+        else:
+            messages.append({"role": "user", "content": user_message})
+
+        # Call Claude
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            tools=tools,
+            messages=messages
+        )
+
+        # Handle tool use
+        if response.stop_reason == "tool_use":
+            tool_block = next((b for b in response.content if b.type == "tool_use"), None)
+
+            if tool_block and portfolio_data:
+                # Call MCP tool
+                tool_input = dict(tool_block.input)
+                tool_input['portfolio_json'] = json.dumps(portfolio_data)
+
+                mcp_result = call_mcp_tool(tool_block.name, **tool_input)
+
+                # Continue conversation with tool result
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_block.id,
+                        "content": json.dumps(mcp_result)
+                    }]
+                })
+
+                final_response = client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=2000,
+                    messages=messages
+                )
+
+                response_text = "".join([b.text for b in final_response.content if hasattr(b, 'text')])
+            else:
+                response_text = "⚠️ Please analyze a portfolio first to use portfolio tools."
+        else:
+            # Direct answer
+            response_text = "".join([b.text for b in response.content if hasattr(b, 'text')])
+
+        return chat_history + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": response_text}
+        ], ""
+
+    except Exception as e:
+        return (chat_history or []) + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": f"❌ Error: {str(e)}"}
+        ], ""
 
 def use_suggested_question(question, chat_history, portfolio_data, api_key_input):
-    """Use a suggested question"""
     if question:
         return send_chat_message(question, chat_history, portfolio_data, api_key_input)
-    return chat_history, ""
+    return chat_history if chat_history else [], ""
 
 
 def clear_chat_history():
-    """Clear chat history"""
     chat = get_chat_instance()
     chat.reset_conversation()
     return []
@@ -617,6 +945,15 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
 
             api_status = gr.Markdown("ℹ️ API key not set. Using environment variable if available.")
 
+            # MCP Quick Actions
+            if MCP_AVAILABLE:
+                gr.Markdown("#### 🚀 Quick Actions (via MCP Tools)")
+                with gr.Row():
+                    mcp_analyze_btn = gr.Button("📊 Analyze Portfolio", variant="secondary")
+                    mcp_optimize_btn = gr.Button("⚡ Optimize Portfolio", variant="secondary")
+                    mcp_risk_btn = gr.Button("⚠️ Check Risk", variant="secondary")
+                    mcp_scenario_btn = gr.Button("🔮 Run Scenario", variant="secondary")
+
             with gr.Row():
                 suggested_questions = gr.Dropdown(
                     label="Suggested Questions",
@@ -650,7 +987,7 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
     pdf_output = gr.File(label="Download PDF Report", visible=False)
     export_status = gr.Markdown("")
 
-    # Event Handlers - FIXED: Removed view_controls from outputs
+    # Event Handlers
     analyze_btn.click(
         fn=process_input,
         inputs=[file_upload, json_text, input_method],
@@ -735,6 +1072,32 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         inputs=[api_key_input],
         outputs=[api_status]
     )
+
+    # MCP Quick Action handlers
+    if MCP_AVAILABLE:
+        mcp_analyze_btn.click(
+            fn=lambda pd, ch: handle_quick_action("📊 Analyze Portfolio", pd, ch),
+            inputs=[portfolio_data_state, chatbot],
+            outputs=[chatbot]
+        )
+
+        mcp_optimize_btn.click(
+            fn=lambda pd, ch: handle_quick_action("⚡ Optimize Portfolio", pd, ch),
+            inputs=[portfolio_data_state, chatbot],
+            outputs=[chatbot]
+        )
+
+        mcp_risk_btn.click(
+            fn=lambda pd, ch: handle_quick_action("⚠️ Check Risk", pd, ch),
+            inputs=[portfolio_data_state, chatbot],
+            outputs=[chatbot]
+        )
+
+        mcp_scenario_btn.click(
+            fn=lambda pd, ch: handle_quick_action("🔮 Run Scenario", pd, ch),
+            inputs=[portfolio_data_state, chatbot],
+            outputs=[chatbot]
+        )
 
     refresh_suggestions_btn.click(
         fn=refresh_suggested_questions_fn,
