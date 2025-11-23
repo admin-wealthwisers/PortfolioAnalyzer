@@ -1,0 +1,670 @@
+/* ========================================
+   WealthMisers Portfolio Analytics - Custom Styles
+   Color Scheme: Teal & Gold from logo
+   ======================================== */
+
+:root {
+    /* Primary Colors - Teal */
+    --primary-teal: #1a5e63;
+    --primary-teal-light: #2d7f85;
+    --primary-teal-dark: #0f3d41;
+    
+    /* Accent Colors - Gold */
+    --accent-gold: #c8932e;
+    --accent-gold-light: #d4a445;
+    --accent-gold-dark: #a67824;
+    
+    /* Supporting Colors */
+    --navy: #1e3a8a;
+    --coral: #f97316;
+    --light-bg: #f8fafc;
+    --light-gray: #e2e8f0;
+    --dark-text: #1e293b;
+    --medium-text: #64748b;
+    
+    /* Semantic Colors */
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    
+    /* Spacing */
+    --spacing-xs: 0.5rem;
+    --spacing-sm: 1rem;
+    --spacing-md: 1.5rem;
+    --spacing-lg: 2rem;
+    --spacing-xl: 3rem;
+}
+
+/* ========================================
+   Global Styles
+   ======================================== */
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f8fafc 0%, #e8f4f5 100%);
+}
+
+.gradio-container {
+    max-width: 100% !important;
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+}
+
+@keyframes gaugeNeedle {
+    0% { transform: rotate(-90deg); }
+    60% { transform: rotate(var(--target-rotation)); }
+    75% { transform: rotate(calc(var(--target-rotation) - 5deg)); }
+    90% { transform: rotate(calc(var(--target-rotation) + 3deg)); }
+    100% { transform: rotate(var(--target-rotation)); }
+}
+
+@keyframes cardFlip {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(180deg); }
+}
+
+/* ========================================
+   Empty State / Landing Page
+   ======================================== */
+
+.empty-state-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 60vh;
+    animation: fadeIn 0.8s ease-out;
+}
+
+.empty-state-card {
+    background: white;
+    border-radius: 16px;
+    padding: var(--spacing-xl);
+    box-shadow: 0 10px 40px rgba(26, 94, 99, 0.1);
+    max-width: 800px;
+    text-align: center;
+    border: 2px solid var(--light-gray);
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.empty-state-header {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-teal);
+    margin-bottom: var(--spacing-md);
+}
+
+.empty-state-subtitle {
+    font-size: 1.1rem;
+    color: var(--medium-text);
+    margin-bottom: var(--spacing-lg);
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: var(--spacing-md);
+}
+
+/* ========================================
+   Sticky Metrics Bar
+   ======================================== */
+
+.metrics-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: white;
+    padding: var(--spacing-md);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-bottom: 3px solid var(--primary-teal);
+    animation: slideDown 0.5s ease-out;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-md);
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, var(--primary-teal) 0%, var(--primary-teal-light) 100%);
+    color: white;
+    padding: var(--spacing-md);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(26, 94, 99, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.metric-card:nth-child(1) { animation-delay: 0.1s; }
+.metric-card:nth-child(2) { animation-delay: 0.2s; }
+.metric-card:nth-child(3) { animation-delay: 0.3s; }
+.metric-card:nth-child(4) { animation-delay: 0.4s; }
+
+.metric-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(26, 94, 99, 0.3);
+}
+
+.metric-card.gold {
+    background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-light) 100%);
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.9;
+    margin-bottom: 0.25rem;
+}
+
+.metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.metric-subvalue {
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+/* ========================================
+   Flip Cards
+   ======================================== */
+
+.flip-card-container {
+    perspective: 1000px;
+    margin-bottom: var(--spacing-md);
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.flip-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+    cursor: pointer;
+}
+
+.flip-card.flipped {
+    transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    background: white;
+    padding: var(--spacing-md);
+}
+
+.flip-card-back {
+    transform: rotateY(180deg);
+    background: linear-gradient(135deg, var(--light-bg) 0%, white 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-xl);
+}
+
+.flip-icon {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 1.25rem;
+    color: var(--medium-text);
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.flip-card:hover .flip-icon {
+    opacity: 1;
+}
+
+.flip-card-back h3 {
+    color: var(--primary-teal);
+    font-size: 1.5rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.flip-card-back p {
+    color: var(--dark-text);
+    line-height: 1.6;
+    max-width: 500px;
+    text-align: center;
+}
+
+/* ========================================
+   AI Insights Card
+   ======================================== */
+
+.ai-insights-card {
+    background: linear-gradient(135deg, #fff9e6 0%, white 100%);
+    border-radius: 16px;
+    padding: var(--spacing-lg);
+    box-shadow: 0 4px 16px rgba(200, 147, 46, 0.15);
+    border: 2px solid var(--accent-gold-light);
+    position: relative;
+    animation: fadeInUp 0.7s ease-out;
+    animation-delay: 0.3s;
+}
+
+.ai-insights-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.ai-insights-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent-gold-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dismiss-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--medium-text);
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.dismiss-btn:hover {
+    color: var(--danger);
+    transform: rotate(90deg);
+}
+
+.ai-insights-content {
+    color: var(--dark-text);
+    line-height: 1.6;
+    margin-bottom: var(--spacing-md);
+}
+
+.ai-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.ai-action-btn {
+    background: var(--accent-gold);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(200, 147, 46, 0.2);
+}
+
+.ai-action-btn:hover {
+    background: var(--accent-gold-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(200, 147, 46, 0.3);
+}
+
+/* ========================================
+   Chart Cards (Draggable/Resizable)
+   ======================================== */
+
+.chart-card {
+    background: white;
+    border-radius: 16px;
+    padding: var(--spacing-md);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.chart-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.chart-card.dragging {
+    opacity: 0.8;
+    cursor: move;
+    transform: scale(1.02);
+    z-index: 1000;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid var(--light-gray);
+}
+
+.chart-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--primary-teal);
+}
+
+.chart-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chart-action-icon {
+    font-size: 1rem;
+    color: var(--medium-text);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.chart-action-icon:hover {
+    color: var(--primary-teal);
+}
+
+/* ========================================
+   Loading States
+   ======================================== */
+
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+}
+
+.skeleton-card {
+    height: 400px;
+    margin-bottom: var(--spacing-md);
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--light-gray);
+    border-top-color: var(--primary-teal);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   Modal
+   ======================================== */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: var(--spacing-xl);
+    max-width: 900px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: fadeInUp 0.4s ease-out;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--light-gray);
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-teal);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: var(--medium-text);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.modal-close:hover {
+    color: var(--danger);
+}
+
+/* ========================================
+   Buttons
+   ======================================== */
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-teal) 0%, var(--primary-teal-light) 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(26, 94, 99, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(26, 94, 99, 0.4);
+}
+
+.btn-secondary {
+    background: white;
+    color: var(--primary-teal);
+    border: 2px solid var(--primary-teal);
+    padding: 0.75rem 2rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+    background: var(--primary-teal);
+    color: white;
+}
+
+.btn-gold {
+    background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-light) 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(200, 147, 46, 0.3);
+}
+
+.btn-gold:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(200, 147, 46, 0.4);
+}
+
+/* ========================================
+   Tabs
+   ======================================== */
+
+.tabs-container {
+    margin-top: var(--spacing-lg);
+}
+
+.tab-nav {
+    display: flex;
+    gap: var(--spacing-sm);
+    border-bottom: 2px solid var(--light-gray);
+    margin-bottom: var(--spacing-lg);
+}
+
+.tab-button {
+    padding: 0.75rem 1.5rem;
+    background: none;
+    border: none;
+    color: var(--medium-text);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-button:hover {
+    color: var(--primary-teal);
+}
+
+.tab-button.active {
+    color: var(--primary-teal);
+    border-bottom-color: var(--primary-teal);
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+.hidden {
+    display: none !important;
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.text-teal {
+    color: var(--primary-teal);
+}
+
+.text-gold {
+    color: var(--accent-gold);
+}
+
+.bg-teal {
+    background-color: var(--primary-teal);
+}
+
+.bg-gold {
+    background-color: var(--accent-gold);
+}
+
+/* ========================================
+   Responsive (Desktop Optimized)
+   ======================================== */
+
+@media (min-width: 1200px) {
+    .main-grid {
+        display: grid;
+        grid-template-columns: 60% 40%;
+        gap: var(--spacing-lg);
+    }
+    
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+}
+
+/* ========================================
+   Custom Scrollbar
+   ======================================== */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--light-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-teal-light);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-teal);
+}

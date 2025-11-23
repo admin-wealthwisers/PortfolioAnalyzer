@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import subprocess
 import atexit
 import asyncio
+from pathlib import Path
 from utils.validators import validate_portfolio_json, sanitize_json_input
 from portfolio.aggregator import process_portfolio_data
 from portfolio.optimizer import (
@@ -47,6 +48,23 @@ except (ImportError, OSError):
 from llm.chat import get_chat_instance, send_message
 from llm.context_builder import build_portfolio_context
 
+# ========== CUSTOM CSS/JS LOADING ==========
+STATIC_DIR = Path(__file__).parent / "static"
+CUSTOM_CSS_PATH = STATIC_DIR / "custom.css"
+CUSTOM_JS_PATH = STATIC_DIR / "custom.js"
+
+
+def load_custom_css():
+    if CUSTOM_CSS_PATH.exists():
+        return CUSTOM_CSS_PATH.read_text(encoding='utf-8')  # ← Added encoding
+    return ""
+
+def load_custom_js():
+    if CUSTOM_JS_PATH.exists():
+        return f"<script>{CUSTOM_JS_PATH.read_text(encoding='utf-8')}</script>"  # ← Added encoding
+    return ""
+
+
 # Global state to store processed portfolio data
 portfolio_state = {}
 charts_state = {}
@@ -65,7 +83,7 @@ except Exception as e:
     MCP_AVAILABLE = False
 
 
-# MCP Client functions
+# ========== MCP CLIENT FUNCTIONS (UNCHANGED) ==========
 async def call_mcp_tool_async(tool_name, **kwargs):
     """Call MCP tool asynchronously"""
     try:
@@ -267,8 +285,108 @@ def handle_quick_action(action_name, portfolio_data, chat_history):
                                {"role": "assistant", "content": f"❌ Error: {str(e)}"}]
 
 
+# ========== NEW UI HELPER FUNCTIONS ==========
+
+def create_metrics_bar(portfolio_data):
+    """Create sticky metrics bar with key KPIs"""
+    if not portfolio_data:
+        return gr.update(value="", visible=False)
+
+    family = portfolio_data['family']
+    risk_score = family['risk_score']
+
+    # Color class based on risk
+    risk_class = '' if risk_score >= 6 else 'gold'
+
+    html = f'''
+    <div class="metrics-bar">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Total Value</div>
+                <div class="metric-value">₹{family['total_value'] / 100000:.2f}L</div>
+                <div class="metric-subvalue">{family['total_gain_pct']:+.2f}%</div>
+            </div>
+
+            <div class="metric-card {risk_class}">
+                <div class="metric-label">Risk Score</div>
+                <div class="metric-value">{family['risk_score']:.1f}/10</div>
+                <div class="metric-subvalue">
+                    {'Low' if risk_score < 4 else 'Moderate' if risk_score < 7 else 'High'}
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Diversification</div>
+                <div class="metric-value">{family['metrics']['diversification_score']:.1f}/10</div>
+                <div class="metric-subvalue">Sharpe: {family['metrics']['sharpe_ratio']:.2f}</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Family Members</div>
+                <div class="metric-value">{family['member_count']}</div>
+                <div class="metric-subvalue">{family['unique_stocks']} stocks</div>
+            </div>
+        </div>
+    </div>
+    '''
+    return gr.update(value=html, visible=True)
+
+
+def generate_ai_insights(portfolio_data):
+    """Generate AI insights based on portfolio analysis"""
+    if not portfolio_data:
+        return "Upload a portfolio to get AI-powered insights..."
+
+    family = portfolio_data['family']
+    overlaps = portfolio_data.get('overlaps', {})
+
+    insights = []
+
+    # Risk assessment
+    if family['risk_score'] > 6:
+        insights.append(
+            "⚠️ **High Risk Alert**: Your portfolio has a risk score of {:.1f}/10. Consider diversifying to reduce volatility.".format(
+                family['risk_score']))
+    elif family['risk_score'] < 3:
+        insights.append(
+            "✅ **Conservative Portfolio**: Low risk score of {:.1f}/10. Good for stability, but returns may be limited.".format(
+                family['risk_score']))
+    else:
+        insights.append(
+            "📊 **Balanced Portfolio**: Moderate risk score of {:.1f}/10 indicates a good risk-reward balance.".format(
+                family['risk_score']))
+
+    # Diversification
+    div_score = family['metrics']['diversification_score']
+    if div_score < 5:
+        insights.append(
+            "🌈 **Low Diversification**: Score of {:.1f}/10. Add more stocks across different sectors.".format(
+                div_score))
+    elif div_score > 7:
+        insights.append("🌟 **Well Diversified**: Excellent diversification score of {:.1f}/10!".format(div_score))
+
+    # Overlaps
+    if overlaps:
+        insights.append(
+            "⚠️ **Overlap Alert**: {} stocks held by multiple family members. This concentrates risk.".format(
+                len(overlaps)))
+
+    # Performance
+    if family['total_gain_pct'] > 15:
+        insights.append("🎉 **Strong Performance**: Portfolio up {:.1f}%! Consider rebalancing to lock in gains.".format(
+            family['total_gain_pct']))
+    elif family['total_gain_pct'] < -5:
+        insights.append(
+            "📉 **Underperforming**: Portfolio down {:.1f}%. Review holdings and consider optimization.".format(
+                family['total_gain_pct']))
+
+    return "\n\n".join(insights) if insights else "Your portfolio looks balanced. Continue monitoring regularly!"
+
+
+# ========== ENHANCED PROCESS INPUT ==========
+
 def process_input(file_input, json_text, input_method):
-    """Process portfolio input from file or text"""
+    """Enhanced: Process portfolio input and manage UI states"""
     try:
         # Get JSON data based on input method
         if input_method == "Upload JSON" and file_input is not None:
@@ -276,12 +394,30 @@ def process_input(file_input, json_text, input_method):
         elif input_method == "Paste JSON" and json_text:
             json_data = json.loads(json_text)
         else:
-            return "❌ Please provide portfolio data", None, None, None, None, gr.update(choices=[], visible=False), None
+            return (
+                "❌ Please provide portfolio data",
+                None, None, None, None,
+                gr.update(choices=[], visible=False),
+                None,
+                gr.update(visible=True),  # Keep empty state visible
+                gr.update(visible=False),  # Hide results state
+                gr.update(value="", visible=False),  # Hide metrics bar
+                ""  # AI insights
+            )
 
         # Validate
         is_valid, message = validate_portfolio_json(json_data)
         if not is_valid:
-            return f"❌ Validation Error: {message}", None, None, None, None, gr.update(choices=[], visible=False), None
+            return (
+                f"❌ Validation Error: {message}",
+                None, None, None, None,
+                gr.update(choices=[], visible=False),
+                None,
+                gr.update(visible=True),
+                gr.update(visible=False),
+                gr.update(value="", visible=False),
+                ""
+            )
 
         # Sanitize and process
         sanitized_data = sanitize_json_input(json_data)
@@ -294,22 +430,11 @@ def process_input(file_input, json_text, input_method):
         # Generate summary message
         family = result['family']
         summary = f"""
-## ✅ Portfolio Analysis Complete
+## ✅ Portfolio Analyzed Successfully
 
-**Family:** {family['email']}
-- **Total Value:** ₹{family['total_value']:,.2f}
-- **Total Gain:** ₹{family['total_gain']:,.2f} ({family['total_gain_pct']:.2f}%)
-- **Members:** {family['member_count']}
-- **Unique Stocks:** {family['unique_stocks']}
-- **Overlapping Stocks:** {family['overlapping_stocks']}
-- **Risk Score:** {family['risk_score']}/10
+**{family['email']}** - {family['member_count']} members, {family['unique_stocks']} unique stocks
 
-**Metrics:**
-- Volatility: {family['metrics']['volatility']:.4f}
-- Expected Return: {family['metrics']['expected_return']:.4f}
-- Sharpe Ratio: {family['metrics']['sharpe_ratio']:.4f}
-- Beta: {family['metrics']['beta']:.4f}
-- Diversification: {family['metrics']['diversification_score']:.2f}/10
+All visualizations are now available below. Click the 🔄 icon on any chart to learn more about that metric.
 """
 
         # Create visualizations
@@ -327,14 +452,38 @@ def process_input(file_input, json_text, input_method):
         # Create member dropdown options
         member_names = [m['name'] for m in result['members']]
 
-        return summary, treemap, member_comparison, overlap_chart, risk_chart, gr.update(choices=member_names,
-                                                                                         value=member_names[0],
-                                                                                         visible=True), result
+        # Generate AI insights
+        ai_insights = generate_ai_insights(result)
+
+        return (
+            summary,
+            treemap,
+            member_comparison,
+            overlap_chart,
+            risk_chart,
+            gr.update(choices=member_names, value=member_names[0], visible=True),
+            result,
+            gr.update(visible=False),  # Hide empty state
+            gr.update(visible=True),  # Show results state
+            create_metrics_bar(result),  # Show metrics bar
+            ai_insights
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return f"❌ Error: {str(e)}", None, None, None, None, gr.update(choices=[], visible=False), None
+        return (
+            f"❌ Error: {str(e)}",
+            None, None, None, None,
+            gr.update(choices=[], visible=False),
+            None,
+            gr.update(visible=True),
+            gr.update(visible=False),
+            gr.update(value="", visible=False),
+            ""
+        )
 
+
+# ========== ORIGINAL FUNCTIONS (UNCHANGED) ==========
 
 def update_view(view_mode, member_name, portfolio_data):
     """Update visualizations based on view mode"""
@@ -754,6 +903,7 @@ def send_chat_message(user_message, chat_history, portfolio_data, api_key_input)
             {"role": "assistant", "content": f"❌ Error: {str(e)}"}
         ], ""
 
+
 def use_suggested_question(question, chat_history, portfolio_data, api_key_input):
     if question:
         return send_chat_message(question, chat_history, portfolio_data, api_key_input)
@@ -807,187 +957,242 @@ def export_to_pdf(portfolio_data):
         return None, f"❌ Error generating PDF: {str(e)}"
 
 
-# Create Gradio Interface
-with gr.Blocks(title="Family Portfolio Analytics") as app:
-    gr.Markdown("""
-    # 👨‍👩‍👧‍👦 Family Portfolio Analytics
-    ### Comprehensive portfolio analysis for Indian stock market investors
-    """)
+# ========== GRADIO INTERFACE WITH ENHANCED UI ==========
 
+# Custom theme
+custom_theme = gr.themes.Soft(
+    primary_hue="cyan",
+    secondary_hue="orange",
+).set(
+    button_primary_background_fill="#1a5e63",
+    button_primary_background_fill_hover="#2d7f85",
+)
+
+# Create Gradio Interface
+with gr.Blocks(
+        title="Portfolio Analytics Platform",
+        theme=custom_theme,
+        css=load_custom_css(),
+        head=load_custom_js()
+) as app:
     # Store portfolio data
     portfolio_data_state = gr.State(value=None)
 
-    # Input Section
-    with gr.Row():
-        input_method = gr.Radio(
-            ["Upload JSON", "Paste JSON"],
-            value="Upload JSON",
-            label="Input Method"
-        )
+    # ========== HEADER ==========
+    gr.HTML('''
+    <div style="text-align: center; padding: 2rem 0 1rem 0;">
+        <h1 style="color: #1a5e63; font-size: 2.5rem; margin-bottom: 0.5rem; font-weight: 700;">
+            📊 Portfolio Analytics Platform
+        </h1>
+        <p style="color: #64748b; font-size: 1.1rem;">
+            AI-powered insights for family portfolio management
+        </p>
+    </div>
+    ''')
 
-    with gr.Row():
-        with gr.Column(scale=1):
-            file_upload = gr.File(label="Upload Portfolio JSON", file_types=[".json"])
-        with gr.Column(scale=1):
-            json_text = gr.Textbox(
-                label="Or Paste JSON Here",
-                lines=10,
-                placeholder='{"email": "family@example.com", "investor": [...]}'
+    # ========== EMPTY STATE (Initial View) ==========
+    with gr.Group(visible=True, elem_id="empty-state") as empty_state:
+        gr.HTML('''
+        <div style="max-width: 800px; margin: 2rem auto; text-align: center; background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 40px rgba(26, 94, 99, 0.1);">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">💼</div>
+            <h2 style="color: #1a5e63; font-size: 2rem; margin-bottom: 1rem;">Let's Analyze Your Portfolio</h2>
+            <p style="color: #64748b; font-size: 1.1rem; margin-bottom: 2rem;">
+                Upload your portfolio data to get started with AI-powered insights,
+                risk analysis, and optimization recommendations.
+            </p>
+        </div>
+        ''')
+
+        with gr.Row():
+            input_method = gr.Radio(
+                ["Upload JSON", "Paste JSON"],
+                value="Upload JSON",
+                label="Input Method"
             )
 
-    analyze_btn = gr.Button("🔍 Analyze Portfolio", variant="primary", size="lg")
+        with gr.Row():
+            with gr.Column(scale=1):
+                file_upload = gr.File(label="📤 Upload Portfolio JSON", file_types=[".json"])
+            with gr.Column(scale=1):
+                json_text = gr.Textbox(
+                    label="📋 Or Paste JSON Here",
+                    lines=8,
+                    placeholder='{"email": "family@example.com", "investor": [...]}'
+                )
 
-    # Results Section
-    analysis_status = gr.Markdown("")
-
-    # View Toggle
-    with gr.Row(visible=True) as view_controls:
-        view_mode = gr.Radio(
-            ["Family View", "Individual View"],
-            value="Family View",
-            label="View Mode"
+        analyze_btn = gr.Button(
+            "🔍 Analyze Portfolio",
+            variant="primary",
+            size="lg"
         )
-        member_dropdown = gr.Dropdown(
-            label="Select Member",
-            visible=False
-        )
 
-    # Overview Tab Content
-    with gr.Tabs():
-        with gr.TabItem("📊 Overview"):
-            with gr.Row():
-                with gr.Column(scale=2):
-                    treemap_chart = gr.Plot(label="Portfolio Allocation")
-                with gr.Column(scale=1):
-                    risk_chart = gr.Plot(label="Risk Score")
+    # ========== RESULTS STATE (After Analysis) ==========
+    with gr.Group(visible=False, elem_id="results-state") as results_state:
 
-            with gr.Row():
-                with gr.Column():
-                    comparison_chart = gr.Plot(label="Member Comparison")
-                with gr.Column():
-                    overlap_chart = gr.Plot(label="Overlapping Holdings")
+        # Sticky Metrics Bar
+        metrics_bar = gr.HTML(value="", visible=False)
 
-            with gr.Row():
-                holdings_table = gr.Plot(label="Holdings Details")
+        # Top Action Bar
+        with gr.Row():
+            back_btn = gr.Button("← Back to Input", size="sm", variant="secondary")
+            gr.HTML('<div style="flex-grow: 1;"></div>')
+            export_btn = gr.Button("📥 Export PDF", size="sm", variant="secondary")
 
-        with gr.TabItem("⚡ Optimization"):
-            gr.Markdown("### Portfolio Optimization")
+        analysis_status = gr.Markdown("")
 
-            with gr.Row():
-                opt_method = gr.Radio(
-                    ["Max Sharpe Ratio", "Min Volatility", "Equal Weight"],
-                    value="Max Sharpe Ratio",
-                    label="Optimization Method"
-                )
-                optimize_btn = gr.Button("🔄 Optimize Portfolio", variant="primary")
+        # View Toggle
+        with gr.Row():
+            view_mode = gr.Radio(
+                ["Family View", "Individual View"],
+                value="Family View",
+                label="View Mode"
+            )
+            member_dropdown = gr.Dropdown(
+                label="Select Member",
+                visible=False
+            )
 
-            optimization_status = gr.Markdown("")
+        # Main Content Grid
+        with gr.Row():
+            # LEFT: Charts (60%)
+            with gr.Column(scale=3):
+                treemap_chart = gr.Plot(label="📊 Portfolio Allocation (Click to explore)")
 
-            with gr.Row():
-                with gr.Column():
-                    efficient_frontier_plot = gr.Plot(label="Efficient Frontier")
-                with gr.Column():
-                    weights_comparison_plot = gr.Plot(label="Current vs Optimized Weights")
-
-            with gr.Row():
-                rebalancing_table = gr.Plot(label="Rebalancing Recommendations")
-
-            metrics_comparison = gr.Markdown("")
-
-        with gr.TabItem("🔮 Scenarios"):
-            gr.Markdown("### What-If Scenario Analysis")
-
-            with gr.Row():
-                scenario_select = gr.Dropdown(
-                    choices=[
-                        "Market Crash (-20%)",
-                        "Market Rally (+15%)",
-                        "Tech Selloff",
-                        "Banking Rally"
-                    ],
-                    value="Market Crash (-20%)",
-                    label="Select Scenario"
-                )
-                run_scenario_btn = gr.Button("▶️ Run Scenario", variant="primary")
-
-            scenario_results_plot = gr.Plot(label="Scenario Impact")
-            scenario_details = gr.Markdown("")
-
-        with gr.TabItem("⚠️ Risk Analysis"):
-            gr.Markdown("### Comprehensive Risk Analysis")
-
-            analyze_risk_btn = gr.Button("📊 Analyze Risk", variant="primary")
-
-            with gr.Row():
-                with gr.Column():
-                    correlation_heatmap = gr.Plot(label="Correlation Matrix")
-                with gr.Column():
-                    risk_contribution_plot = gr.Plot(label="Risk Contribution")
-
-            with gr.Row():
-                concentration_metrics = gr.Markdown("")
-                var_metrics = gr.Markdown("")
-
-        with gr.TabItem("💬 Ask AI"):
-            gr.Markdown("""
-            ### AI Portfolio Advisor
-            Ask questions about your portfolio and get insights powered by Claude AI.
-            """)
-
-            with gr.Row():
-                api_key_input = gr.Textbox(
-                    label="Anthropic API Key (Optional)",
-                    placeholder="sk-ant-...",
-                    type="password",
-                    scale=3
-                )
-                set_api_key_btn = gr.Button("Set API Key", scale=1)
-
-            api_status = gr.Markdown("ℹ️ API key not set. Using environment variable if available.")
-
-            # MCP Quick Actions
-            if MCP_AVAILABLE:
-                gr.Markdown("#### 🚀 Quick Actions (via MCP Tools)")
                 with gr.Row():
-                    mcp_analyze_btn = gr.Button("📊 Analyze Portfolio", variant="secondary")
-                    mcp_optimize_btn = gr.Button("⚡ Optimize Portfolio", variant="secondary")
-                    mcp_risk_btn = gr.Button("⚠️ Check Risk", variant="secondary")
-                    mcp_scenario_btn = gr.Button("🔮 Run Scenario", variant="secondary")
+                    with gr.Column():
+                        comparison_chart = gr.Plot(label="👥 Member Comparison")
+                    with gr.Column():
+                        risk_chart = gr.Plot(label="⚠️ Risk Score")
 
-            with gr.Row():
-                suggested_questions = gr.Dropdown(
-                    label="Suggested Questions",
-                    choices=[],
-                    interactive=True
+            # RIGHT: AI Insights (40%)
+            with gr.Column(scale=2):
+                with gr.Group(elem_id="ai-insights-card") as ai_insights:
+                    gr.HTML('<h3 style="color: #c8932e; margin-bottom: 1rem;">💡 AI Insights</h3>')
+
+                    ai_insights_content = gr.Markdown(
+                        "Analyzing your portfolio...",
+                        elem_classes="ai-insights-content"
+                    )
+
+        # Overlap chart (full width)
+        overlap_chart = gr.Plot(label="🔗 Overlapping Holdings")
+
+        # Holdings table
+        holdings_table = gr.Plot(label="📋 Holdings Details")
+
+        # Tabs for additional analysis
+        with gr.Tabs():
+            with gr.TabItem("⚡ Optimization"):
+                gr.Markdown("### Portfolio Optimization")
+
+                with gr.Row():
+                    opt_method = gr.Radio(
+                        ["Max Sharpe Ratio", "Min Volatility", "Equal Weight"],
+                        value="Max Sharpe Ratio",
+                        label="Optimization Method"
+                    )
+                    optimize_btn = gr.Button("🔄 Optimize Portfolio", variant="primary")
+
+                optimization_status = gr.Markdown("")
+
+                with gr.Row():
+                    with gr.Column():
+                        efficient_frontier_plot = gr.Plot(label="Efficient Frontier")
+                    with gr.Column():
+                        weights_comparison_plot = gr.Plot(label="Current vs Optimized Weights")
+
+                rebalancing_table = gr.Plot(label="Rebalancing Recommendations")
+                metrics_comparison = gr.Markdown("")
+
+            with gr.TabItem("🔮 Scenarios"):
+                gr.Markdown("### What-If Scenario Analysis")
+
+                with gr.Row():
+                    scenario_select = gr.Dropdown(
+                        choices=[
+                            "Market Crash (-20%)",
+                            "Market Rally (+15%)",
+                            "Tech Selloff",
+                            "Banking Rally"
+                        ],
+                        value="Market Crash (-20%)",
+                        label="Select Scenario"
+                    )
+                    run_scenario_btn = gr.Button("▶️ Run Scenario", variant="primary")
+
+                scenario_results_plot = gr.Plot(label="Scenario Impact")
+                scenario_details = gr.Markdown("")
+
+            with gr.TabItem("⚠️ Risk Analysis"):
+                gr.Markdown("### Comprehensive Risk Analysis")
+
+                analyze_risk_btn = gr.Button("📊 Analyze Risk", variant="primary")
+
+                with gr.Row():
+                    with gr.Column():
+                        correlation_heatmap = gr.Plot(label="Correlation Matrix")
+                    with gr.Column():
+                        risk_contribution_plot = gr.Plot(label="Risk Contribution")
+
+                with gr.Row():
+                    concentration_metrics = gr.Markdown("")
+                    var_metrics = gr.Markdown("")
+
+            with gr.TabItem("💬 Ask AI"):
+                gr.Markdown("### AI Portfolio Advisor")
+
+                with gr.Row():
+                    api_key_input = gr.Textbox(
+                        label="Anthropic API Key (Optional)",
+                        placeholder="sk-ant-...",
+                        type="password",
+                        scale=3
+                    )
+                    set_api_key_btn = gr.Button("Set API Key", scale=1)
+
+                api_status = gr.Markdown("ℹ️ Using environment variable for API key")
+
+                # MCP Quick Actions
+                if MCP_AVAILABLE:
+                    gr.Markdown("#### 🚀 Quick Actions")
+                    with gr.Row():
+                        mcp_analyze_btn = gr.Button("📊 Analyze", variant="secondary")
+                        mcp_optimize_btn = gr.Button("⚡ Optimize", variant="secondary")
+                        mcp_risk_btn = gr.Button("⚠️ Risk", variant="secondary")
+                        mcp_scenario_btn = gr.Button("🔮 Scenario", variant="secondary")
+
+                with gr.Row():
+                    suggested_questions = gr.Dropdown(
+                        label="Suggested Questions",
+                        choices=[],
+                        interactive=True
+                    )
+                    refresh_suggestions_btn = gr.Button("🔄 Refresh", scale=0)
+
+                chatbot = gr.Chatbot(
+                    label="Portfolio Advisor Chat",
+                    height=500
                 )
-                refresh_suggestions_btn = gr.Button("🔄 Refresh", scale=0)
 
-            chatbot = gr.Chatbot(
-                label="Portfolio Advisor Chat",
-                height=500,
-                show_label=True
-            )
+                with gr.Row():
+                    msg_input = gr.Textbox(
+                        label="Your Question",
+                        placeholder="Ask me anything about your portfolio...",
+                        scale=4
+                    )
+                    send_btn = gr.Button("Send", variant="primary", scale=1)
 
-            with gr.Row():
-                msg_input = gr.Textbox(
-                    label="Your Question",
-                    placeholder="Ask me anything about your portfolio...",
-                    scale=4
-                )
-                send_btn = gr.Button("Send", variant="primary", scale=1)
+                with gr.Row():
+                    clear_chat_btn = gr.Button("🗑️ Clear Chat")
+                    update_context_btn = gr.Button("🔄 Update Context")
 
-            with gr.Row():
-                clear_chat_btn = gr.Button("🗑️ Clear Chat")
-                update_context_btn = gr.Button("🔄 Update Portfolio Context")
-
-    # Export Section
-    with gr.Row(visible=False) as export_section:
-        export_pdf_btn = gr.Button("📥 Export Full Report to PDF", variant="primary", size="lg")
-
+    # PDF Export Output
     pdf_output = gr.File(label="Download PDF Report", visible=False)
     export_status = gr.Markdown("")
 
-    # Event Handlers
+    # ========== EVENT HANDLERS ==========
+
+    # Main analyze button
     analyze_btn.click(
         fn=process_input,
         inputs=[file_upload, json_text, input_method],
@@ -998,13 +1203,25 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
             overlap_chart,
             risk_chart,
             member_dropdown,
-            portfolio_data_state
+            portfolio_data_state,
+            empty_state,
+            results_state,
+            metrics_bar,
+            ai_insights_content
         ]
     ).then(
-        fn=lambda: gr.update(visible=True),
-        outputs=[export_section]
+        fn=refresh_suggested_questions_fn,
+        inputs=[portfolio_data_state],
+        outputs=[suggested_questions]
     )
 
+    # Back button
+    back_btn.click(
+        fn=lambda: (gr.update(visible=True), gr.update(visible=False)),
+        outputs=[empty_state, results_state]
+    )
+
+    # View mode changes
     view_mode.change(
         fn=toggle_member_dropdown,
         inputs=[view_mode],
@@ -1023,7 +1240,7 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         outputs=[treemap_chart, comparison_chart, holdings_table]
     )
 
-    # Optimization tab handlers
+    # Optimization tab
     optimize_btn.click(
         fn=run_optimization,
         inputs=[portfolio_data_state, opt_method],
@@ -1036,14 +1253,14 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         ]
     )
 
-    # Scenarios tab handlers
+    # Scenarios tab
     run_scenario_btn.click(
         fn=run_scenario_analysis,
         inputs=[portfolio_data_state, scenario_select],
         outputs=[scenario_results_plot, scenario_details]
     )
 
-    # Risk Analysis tab handlers
+    # Risk Analysis tab
     analyze_risk_btn.click(
         fn=run_risk_analysis,
         inputs=[portfolio_data_state],
@@ -1055,8 +1272,8 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         ]
     )
 
-    # PDF Export handler
-    export_pdf_btn.click(
+    # PDF Export
+    export_btn.click(
         fn=export_to_pdf,
         inputs=[portfolio_data_state],
         outputs=[pdf_output, export_status]
@@ -1066,14 +1283,13 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         outputs=[pdf_output]
     )
 
-    # AI Chat tab handlers
+    # AI Chat handlers
     set_api_key_btn.click(
         fn=set_api_key,
         inputs=[api_key_input],
         outputs=[api_status]
     )
 
-    # MCP Quick Action handlers
     if MCP_AVAILABLE:
         mcp_analyze_btn.click(
             fn=lambda pd, ch: handle_quick_action("📊 Analyze Portfolio", pd, ch),
@@ -1100,13 +1316,6 @@ with gr.Blocks(title="Family Portfolio Analytics") as app:
         )
 
     refresh_suggestions_btn.click(
-        fn=refresh_suggested_questions_fn,
-        inputs=[portfolio_data_state],
-        outputs=[suggested_questions]
-    )
-
-    # Auto-refresh suggestions when portfolio is loaded
-    analyze_btn.click(
         fn=refresh_suggested_questions_fn,
         inputs=[portfolio_data_state],
         outputs=[suggested_questions]
